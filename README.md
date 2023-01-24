@@ -1,4 +1,4 @@
-# EdubeJavascript
+# EdubeJavascript 
 This repository serves as my output folder during my Javascript Training in AWS.
 
 
