@@ -31,3 +31,14 @@ console.log(getRandomSet(10, 20, false, false));
 console.log(getRandomSet(10, 20, false, true));
 console.log(getRandomSet(10, 20, true, false));
 console.log(getRandomSet(10, 20, true, true));
+
+//Explanation:
+
+// The function takes 4 parameters as input: m, n, allowRepeat, sort
+// A new Set is created and it's size is checked with while loop.
+// Inside the while loop, a random number is generated between 0 and n (inclusive) using Math.random() and Math.floor().
+// If allowRepeat is true, the random number is added to the set.
+// If allowRepeat is false, it's checked if the set already contains the random number. If not, then it's added to the set.
+// After the while loop, the set is converted to an array using [...set].
+// If sort is true, the result array is sorted in ascending order using .sort() method.
+// Finally, the result array is returned.
