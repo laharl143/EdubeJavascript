@@ -2,70 +2,88 @@
 
 // Here is an example of the basic structure for both functions using a hypothetical aurora forecast API:
 
-async function getForecastByPosition({lon, lat}) {
-    const response = await fetch(`https://aurora-forecast-api.com/forecast?lon=${lon}&lat=${lat}`);
-    const data = await response.json();
-    return data;
-  }
+// async function getForecastByPosition({lon, lat}) {
+//     const response = await fetch(`https://aurora-forecast-api.com/forecast?lon=${lon}&lat=${lat}`);
+//     const data = await response.json();
+//     return data;
+//   }
   
-  async function getForecastByAddress({country, city, street}) {
-    let address = `${city}, ${country}`;
-    if (street) {
-      address = `${street}, ${address}`;
-    }
-    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${address}`);
-    const data = await response.json();
-    if (!data.results.length) {
-      return {error: 'Address not found'};
-    }
-    const { lat, lng } = data.results[0].geometry.location;
-    return getForecastByPosition({lon: lng, lat});
-  }
+//   async function getForecastByAddress({country, city, street}) {
+//     let address = `${city}, ${country}`;
+//     if (street) {
+//       address = `${street}, ${address}`;
+//     }
+//     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${address}`);
+//     const data = await response.json();
+//     if (!data.results.length) {
+//       return {error: 'Address not found'};
+//     }
+//     const { lat, lng } = data.results[0].geometry.location;
+//     return getForecastByPosition({lon: lng, lat});
+//   }
 
-//   Note: This example uses the Fetch API for making network requests and assumes the availability of a Google Maps API for converting address to coordinates.
+//This example uses the Fetch API for making network requests and assumes the availability of a Google Maps API for converting address to coordinates.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+const axios = require("axios");
+const { isValidCoordinates, isValidAddress } = require("./validation");
 
-const axios = require('axios');
-const moment = require('moment');
+const AURORA_FORECAST_URL = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json";
+const GEOCODING_URL = "https://nominatim.openstreetmap.org/search";
 
-let auroraForecastData = null;
-let auroraForecastTime = null;
+let auroraForecast = null;
+let auroraForecastTimestamp = null;
 
 async function getAuroraForecast() {
-  if (auroraForecastData && moment().diff(auroraForecastTime, 'minutes') < 30) {
-    return auroraForecastData;
+  if (auroraForecast && Date.now() - auroraForecastTimestamp < 30 * 60 * 1000) {
+    return auroraForecast;
   }
-  const response = await axios.get('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json');
-  auroraForecastData = response.data;
-  auroraForecastTime = moment();
-  return auroraForecastData;
+
+  const { data } = await axios.get(AURORA_FORECAST_URL);
+  auroraForecast = data;
+  auroraForecastTimestamp = Date.now();
+
+  return auroraForecast;
 }
 
-async function getForecastByPosition({lon, lat}) {
-  if (lon < -180 || lon > 180 || lat < -90 || lat > 90) {
-    return {error: 'Invalid position'};
+async function getForecastByPosition({ lon, lat }) {
+  if (!isValidCoordinates({ lon, lat })) {
+    throw new Error("Invalid coordinates");
   }
-  const auroraForecast = await getAuroraForecast();
-  const lonIndex = Math.round((lon + 180) * 2);
-  const latIndex = Math.round((90 - lat) * 2);
-  const auroraValue = auroraForecast.coordinates[latIndex][lonIndex][2];
-  return { auroraValue, forecastTime: auroraForecast.Forecast Time };
-}
 
-async function getForecastByAddress({country, city, street}) {
-  let address = `${city}, ${country}`;
-  if (street) {
-    address = `${street}, ${address}`;
-  }
-  try {
-    const response = await axios.get(`https://nominatim.openstreetmap.org/search?q=${address}&format=json`);
-    if (!response.data.length) {
-      return {error: 'Address not found'};
+  const auroraData = await getAuroraForecast();
+  const coordinates = auroraData.coordinates;
+
+  for (const coord of coordinates) {
+    if (coord[0] === lon && coord[1] === lat) {
+      return coord[2];
     }
-    const { lat, lon } = response.data[0];
-    return getForecastByPosition({lon, lat});
-  } catch (error) {
-    return {error: 'Could not access geocoding service'};
   }
+
+  throw new Error("Aurora forecast not available for this location");
 }
 
-// This implementation caches the aurora forecast data for 30 minutes. It uses the moment library to keep track of the forecast time and check if the cached data is still valid. The axios library is used for making the API calls to both the aurora forecast and geocodingx`     services. The getForecastByAddress function first performs a geocoding request to convert the address to coordinates, and then calls getForecastByPosition to retrieve the aurora forecast. Error handling is included for invalid positions, non-existent addresses, and network errors.
+async function getForecastByAddress({ country, city, street = "" }) {
+  if (!isValidAddress({ country, city })) {
+    throw new Error("Invalid address");
+  }
+
+  const { data } = await axios.get(GEOCODING_URL, {
+    params: {
+      country,
+      city,
+      street,
+      format: "json",
+    },
+  });
+
+  if (!data || !data.length) {
+    throw new Error("Address not found");
+  }
+
+  const { lat, lon } = data[0];
+  return getForecastByPosition({ lon, lat });
+}
+
+//This code makes use of the axios library to make HTTP requests to the aurora forecast and geocoding APIs. 
+//The getAuroraForecast function caches the aurora forecast data for 30 minutes to minimize network requests. 
+//The getForecastByPosition and getForecastByAddress functions perform the necessary data transformations and error handling to return the aurora forecast for a given location.
